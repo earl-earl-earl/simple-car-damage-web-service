@@ -50,15 +50,9 @@ def postprocess_detections(outputs, img_width, img_height, confidence_thres=0.3,
 
     # Apply Non-Maximum Suppression
     indices = cv2.dnn.NMSBoxes(boxes, scores, confidence_thres, iou_thres)
-    results = []
-    for i in indices.flatten():
-        results.append({
-            "label": damage_classes.get(str(class_ids[i]), "Unknown"),
-            "bbox": boxes[i],
-            "confidence": float(scores[i])
-        })
+    detected_labels = [damage_classes.get(str(class_ids[i]), "Unknown") for i in indices.flatten()]
     
-    return results if results else [{"label": "No Damage", "bbox": [], "confidence": 0.0}]
+    return detected_labels if detected_labels else ["No Damage"]
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -68,7 +62,7 @@ def predict():
     image = request.files["image"]
     img_data = preprocess_image(image, size=(640, 640), swap_channels=True)
     damage_outputs = damage_model.run(None, {damage_model.get_inputs()[0].name: img_data})
-    damage_results = postprocess_detections(damage_outputs, 640, 640)
+    damage_labels = postprocess_detections(damage_outputs, 640, 640)
     
     # Run severity classification
     image.seek(0)  # Reset file pointer
@@ -77,7 +71,7 @@ def predict():
     severity_prediction = np.argmax(severity_outputs[0])
     severity_label = severity_classes.get(str(severity_prediction), "Unknown")
     
-    return jsonify({"damages": damage_results, "severity": severity_label})
+    return jsonify({"damages": list(set(damage_labels)), "severity": severity_label})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)

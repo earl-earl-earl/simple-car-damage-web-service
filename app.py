@@ -77,7 +77,7 @@ def predict():
     severity_prediction = np.argmax(severity_outputs[0])
     severity_label = severity_classes.get(str(severity_prediction), "Unknown")
     
-    return jsonify({"damages": damage_results, "severity": severity_label})
+    return jsonify({"damages": damage_results, "severity": severity_label, "image_width": 640, "image_height": 640})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)

@@ -53,9 +53,26 @@ def postprocess_detections(outputs, img_width, img_height, confidence_thres=0.3,
 
     detected_labels = []
     if indices is not None:  # Check if any boxes survived NMS
-        for i in indices.flatten(): #Flatten to handle multi-dimensional array
+        try:
+            if isinstance(indices, tuple):
+                # Convert tuple to a NumPy array (handling the case where it might be empty)
+                if indices: # Check if the tuple is not empty
+                    indices = np.array(indices)
+                else:
+                    indices = np.array([]) #empty array
+            elif not isinstance(indices, np.ndarray):
+                # If it's not a tuple or ndarray, try to convert it
+                indices = np.array(indices)
 
-            detected_labels.append(damage_classes.get(str(class_ids[i]), "Unknown"))
+            if indices.size > 0:  # Check if the array is not empty.  Prevents error if empty list or array
+                indices = indices.flatten() # Flatten regardless
+
+                for i in indices:
+                    detected_labels.append(damage_classes.get(str(class_ids[i]], "Unknown"))
+
+        except Exception as e:
+            print(f"Error processing indices: {e}")
+            return ["Error Processing Detections"]
 
     return detected_labels if detected_labels else ["No Damage"]
 

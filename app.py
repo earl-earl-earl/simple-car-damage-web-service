@@ -15,7 +15,7 @@ with open("severity_classes.json", "r") as f:
     severity_classes = json.load(f)
 
 # Load ONNX models with optimized settings
-damage_model = ort.InferenceSession("car_damage.onnx.onnx", providers=["CPUExecutionProvider"])
+damage_model = ort.InferenceSession("car_damage.onnx", providers=["CPUExecutionProvider"])
 severity_model = ort.InferenceSession("severity_model.onnx", providers=["CPUExecutionProvider"])
 
 

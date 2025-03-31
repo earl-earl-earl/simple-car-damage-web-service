@@ -81,8 +81,9 @@ def predict():
     damage_scores = damage_outputs[0][0]
     damage_indices = np.where(damage_scores > confidence_threshold)[0]
     
-    if len(damage_indices) > 0:
-        damage_boxes = [damage_outputs[1][0][i] for i in damage_indices]  # Get bounding boxes
+    damage_labels = []
+    if len(damage_indices) > 0 and len(damage_outputs) > 1 and len(damage_outputs[1]) > 0:
+        damage_boxes = [damage_outputs[1][0][i] for i in damage_indices if i < len(damage_outputs[1][0])]
         damage_labels = [damage_classes.get(str(i), "Unknown") for i in damage_indices]
         selected_indices = non_max_suppression(damage_boxes, damage_scores[damage_indices], iou_threshold=0.5)
         damage_labels = [damage_labels[i] for i in selected_indices]

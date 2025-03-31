@@ -50,8 +50,13 @@ def postprocess_detections(outputs, img_width, img_height, confidence_thres=0.3,
 
     # Apply Non-Maximum Suppression
     indices = cv2.dnn.NMSBoxes(boxes, scores, confidence_thres, iou_thres)
-    detected_labels = [damage_classes.get(str(class_ids[i]), "Unknown") for i in indices.flatten()]
-    
+
+    detected_labels = []
+    if indices is not None:  # Check if any boxes survived NMS
+        for i in indices.flatten(): #Flatten to handle multi-dimensional array
+
+            detected_labels.append(damage_classes.get(str(class_ids[i]), "Unknown"))
+
     return detected_labels if detected_labels else ["No Damage"]
 
 @app.route("/predict", methods=["POST"])

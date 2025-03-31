@@ -4,8 +4,10 @@ import numpy as np
 import cv2
 import json
 import os
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 # Load class mappings from JSON files
 with open("damage_classes.json", "r") as f:
@@ -57,7 +59,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    from waitress import serve
-    serve(app, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
-
-
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)

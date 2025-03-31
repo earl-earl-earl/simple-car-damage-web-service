@@ -49,16 +49,25 @@ def postprocess_detections(outputs, img_width, img_height, confidence_thres=0.3,
             boxes.append([left, top, left + width, top + height])
 
     # Apply Non-Maximum Suppression
-    indices = cv2.dnn.NMSBoxes(boxes, scores, confidence_thres, iou_thres)
-    results = []
-    for i in indices.flatten():
-        results.append({
-            "label": damage_classes.get(str(class_ids[i]), "Unknown"),
-            "bbox": boxes[i],
-            "confidence": float(scores[i])
-        })
+    if len(boxes) > 0:
+        indices = cv2.dnn.NMSBoxes(boxes, scores, confidence_thres, iou_thres)
+        
+        # Convert indices to numpy array if it's a tuple
+        if isinstance(indices, tuple):
+            indices = np.array(indices)
+        else:
+            indices = indices.flatten()
+        
+        results = []
+        for i in indices:
+            results.append({
+                "label": damage_classes.get(str(class_ids[i]), "Unknown"),
+                "bbox": boxes[i],
+                "confidence": float(scores[i])
+            })
+        return results
     
-    return results if results else [{"label": "No Damage", "bbox": [], "confidence": 0.0}]
+    return [{"label": "No Damage", "bbox": [], "confidence": 0.0}]
 
 @app.route("/predict", methods=["POST"])
 def predict():

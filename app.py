@@ -50,32 +50,16 @@ def postprocess_detections(outputs, img_width, img_height, confidence_thres=0.3,
 
     # Apply Non-Maximum Suppression
     indices = cv2.dnn.NMSBoxes(boxes, scores, confidence_thres, iou_thres)
-
-    detected_labels = []
-    if indices is not None:  # Check if any boxes survived NMS
-        try:
-            if isinstance(indices, tuple):
-                # Convert tuple to a NumPy array (handling the case where it might be empty)
-                if indices: # Check if the tuple is not empty
-                    indices = np.array(indices)
-                else:
-                    indices = np.array([]) #empty array
-            elif not isinstance(indices, np.ndarray):
-                # If it's not a tuple or ndarray, try to convert it
-                indices = np.array(indices)
-
-            if indices.size > 0:  # Check if the array is not empty.  Prevents error if empty list or array
-                indices = indices.flatten() # Flatten regardless
-
-                for i in indices:
-                    detected_labels.append(damage_classes.get(str(int(i))), "Unknown")
-
-        except Exception as e:
-            print(f"Error processing indices: {e}")
-            return ["Error Processing Detections"]
-
-    return detected_labels if detected_labels else ["No Damage"]
+    results = []
+    for i in indices.flatten():
+        results.append({
+            "label": damage_classes.get(str(class_ids[i]), "Unknown"),
+            "bbox": boxes[i],
+            "confidence": float(scores[i])
+        })
     
+    return results if results else [{"label": "No Damage", "bbox": [], "confidence": 0.0}]
+
 @app.route("/predict", methods=["POST"])
 def predict():
     if "image" not in request.files:
@@ -84,7 +68,7 @@ def predict():
     image = request.files["image"]
     img_data = preprocess_image(image, size=(640, 640), swap_channels=True)
     damage_outputs = damage_model.run(None, {damage_model.get_inputs()[0].name: img_data})
-    damage_labels = postprocess_detections(damage_outputs, 640, 640)
+    damage_results = postprocess_detections(damage_outputs, 640, 640)
     
     # Run severity classification
     image.seek(0)  # Reset file pointer
@@ -93,7 +77,7 @@ def predict():
     severity_prediction = np.argmax(severity_outputs[0])
     severity_label = severity_classes.get(str(severity_prediction), "Unknown")
     
-    return jsonify({"damages": list(set(damage_labels)), "severity": severity_label})
+    return jsonify({"damages": damage_results, "severity": severity_label})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)

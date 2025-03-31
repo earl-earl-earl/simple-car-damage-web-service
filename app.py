@@ -32,39 +32,27 @@ def preprocess_image(image, size, swap_channels=True):
     img = np.expand_dims(img, axis=0).astype(np.float32)
     return img
 
-def iou(box1, box2):
-    x1, y1, x2, y2 = box1
-    x1_p, y1_p, x2_p, y2_p = box2
+def postprocess_detections(outputs, img_width, img_height, confidence_thres=0.3, iou_thres=0.3):
+    outputs = np.transpose(np.squeeze(outputs[0]))
+    rows = outputs.shape[0]
+    boxes, scores, class_ids = [], [], []
 
-    inter_x1 = max(x1, x1_p)
-    inter_y1 = max(y1, y1_p)
-    inter_x2 = min(x2, x2_p)
-    inter_y2 = min(y2, y2_p)
+    for i in range(rows):
+        class_scores = outputs[i][4:]
+        max_score = np.amax(class_scores)
+        if max_score >= confidence_thres:
+            class_id = np.argmax(class_scores)
+            x, y, w, h = outputs[i][:4]
+            left, top, width, height = int(x - w / 2), int(y - h / 2), int(w), int(h)
+            class_ids.append(class_id)
+            scores.append(max_score)
+            boxes.append([left, top, left + width, top + height])
+
+    # Apply Non-Maximum Suppression
+    indices = cv2.dnn.NMSBoxes(boxes, scores, confidence_thres, iou_thres)
+    detected_labels = [damage_classes.get(str(class_ids[i]), "Unknown") for i in indices.flatten()]
     
-    inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
-    box1_area = (x2 - x1) * (y2 - y1)
-    box2_area = (x2_p - x1_p) * (y2_p - y1_p)
-    union_area = box1_area + box2_area - inter_area
-    
-    return inter_area / union_area if union_area > 0 else 0
-
-def non_max_suppression(predictions, scores, iou_threshold=0.5):
-    if len(predictions) == 0:
-        return []
-
-    sorted_indices = np.argsort(scores)[::-1]
-    selected_indices = []
-
-    while len(sorted_indices) > 0:
-        current_idx = sorted_indices[0]
-        selected_indices.append(current_idx)
-
-        other_indices = sorted_indices[1:]
-        sorted_indices = [
-            i for i in other_indices if iou(predictions[current_idx], predictions[i]) < iou_threshold
-        ]
-
-    return selected_indices
+    return detected_labels if detected_labels else ["No Damage"]
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -72,36 +60,16 @@ def predict():
         return jsonify({"error": "No image provided"}), 400
 
     image = request.files["image"]
-    
-    # Run damage detection (640x640, Channels First)
     img_data = preprocess_image(image, size=(640, 640), swap_channels=True)
     damage_outputs = damage_model.run(None, {damage_model.get_inputs()[0].name: img_data})
+    damage_labels = postprocess_detections(damage_outputs, 640, 640)
     
-    print("Damage Model Outputs:", damage_outputs)  # Debugging line
-    
-    confidence_threshold = 0.3
-    damage_scores = damage_outputs[0][0]
-    damage_indices = np.where(damage_scores > confidence_threshold)[0]
-    
-    damage_labels = []
-    if len(damage_indices) > 0 and len(damage_outputs) > 1 and len(damage_outputs[1]) > 0:
-        damage_boxes = [damage_outputs[1][0][i] for i in damage_indices if i < len(damage_outputs[1][0])]
-        damage_labels = [damage_classes.get(str(i), "Unknown") for i in damage_indices]
-        selected_indices = non_max_suppression(damage_boxes, damage_scores[damage_indices], iou_threshold=0.5)
-        damage_labels = [damage_labels[i] for i in selected_indices]
-    else:
-        damage_labels = ["No Damage"]
-    
-    print("Detected Damage Labels:", damage_labels)  # Debugging line
-
-    # Run severity classification (224x224, No Channel Swap)
+    # Run severity classification
     image.seek(0)  # Reset file pointer
     img_data = preprocess_image(image, size=(224, 224), swap_channels=False)
     severity_outputs = severity_model.run(None, {severity_model.get_inputs()[0].name: img_data})
     severity_prediction = np.argmax(severity_outputs[0])
     severity_label = severity_classes.get(str(severity_prediction), "Unknown")
-    
-    print("Severity Prediction:", severity_label)  # Debugging line
     
     return jsonify({"damages": list(set(damage_labels)), "severity": severity_label})
 

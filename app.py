@@ -77,6 +77,8 @@ def predict():
     img_data = preprocess_image(image, size=(640, 640), swap_channels=True)
     damage_outputs = damage_model.run(None, {damage_model.get_inputs()[0].name: img_data})
     
+    print("Damage Model Outputs:", damage_outputs)  # Debugging line
+    
     confidence_threshold = 0.3
     damage_scores = damage_outputs[0][0]
     damage_indices = np.where(damage_scores > confidence_threshold)[0]
@@ -89,6 +91,8 @@ def predict():
         damage_labels = [damage_labels[i] for i in selected_indices]
     else:
         damage_labels = ["No Damage"]
+    
+    print("Detected Damage Labels:", damage_labels)  # Debugging line
 
     # Run severity classification (224x224, No Channel Swap)
     image.seek(0)  # Reset file pointer
@@ -96,7 +100,9 @@ def predict():
     severity_outputs = severity_model.run(None, {severity_model.get_inputs()[0].name: img_data})
     severity_prediction = np.argmax(severity_outputs[0])
     severity_label = severity_classes.get(str(severity_prediction), "Unknown")
-
+    
+    print("Severity Prediction:", severity_label)  # Debugging line
+    
     return jsonify({"damages": list(set(damage_labels)), "severity": severity_label})
 
 if __name__ == "__main__":
